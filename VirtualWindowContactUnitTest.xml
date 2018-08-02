@@ -5,7 +5,7 @@
 			<typeNumber>0xFF00</typeNumber>
 		</device>
 	</supportedDevices>
-		<runProgram>
+	<runProgram>
 		<startType>permanent</startType>
 		<script2>
 <![CDATA[<?php
@@ -19,19 +19,15 @@ class SharedData extends Threaded
     public $interval = 60;
     public $stop = false;
     public $eventThread = NULL;
-
     public function run() {}
 }
-
 class EventThread extends Thread
 {
     private $sharedData;
-
 	public function __construct($sharedData)
 	{
 		$this->sharedData = $sharedData;
 	}
-
 	public function run()
 	{
 		$hg = new \Homegear\Homegear();
@@ -60,16 +56,13 @@ class EventThread extends Thread
 		}
 	}
 }
-
 class MainThread extends Thread
 {
 	private $sharedData;
-
 	public function __construct($sharedData)
 	{
 		$this->sharedData = $sharedData;
 	}
-
 	public function run()
 	{
 		$hg = new \Homegear\Homegear();
@@ -81,9 +74,14 @@ class MainThread extends Thread
 		while(!$this->sharedData->stop)
 		{
 			$this->sharedData->interval = 60;
-
-			$hg->setValue($this->sharedData->peerId, 1, "STATE", (bool)rand(0, 1));
-
+            $currentValue = $hg->getValue($this->sharedData->peerId, 1, "STATE");
+            $newValue = (bool)rand(0, 1);
+            if($currentValue != $newValue)
+            {
+                $counter = $hg->getValue($this->sharedData->peerId, 1, "COUNTER") + 1;
+                $hg->setValue($this->sharedData->peerId, 1, "STATE", $newValue);
+                $hg->setValue($this->sharedData->peerId, 1, "COUNTER", $counter);
+            }
 		    $waited = 0;
 		    while($waited < $this->sharedData->interval && !$this->sharedData->stop)
 		    {
@@ -93,7 +91,6 @@ class MainThread extends Thread
 		}
 	}
 }
-
 class HomegearDevice extends HomegearDeviceBase
 {
 	private $hg = NULL;
@@ -101,24 +98,20 @@ class HomegearDevice extends HomegearDeviceBase
 	private $sharedData = NULL;
 	private $mainThread = NULL;
 	private $eventThread = NULL;
-
 	function __construct()
 	{
 		$this->hg = new \Homegear\Homegear();
 	}
-
 	function __destruct()
 	{
 		$this->stop();
 		$this->waitForStop();
 	}
-
 	public function init($peerId) : bool
 	{
 		$this->peerId = $peerId;
 		return true;
 	}
-
 	public function start() : bool
 	{
 		$this->sharedData = new SharedData();
@@ -131,12 +124,10 @@ class HomegearDevice extends HomegearDeviceBase
 		$this->mainThread->start();
 		return true;
 	}
-
 	public function stop()
 	{
 		if($this->eventThread || $this->mainThread) $this->sharedData->stop = true;
 	}
-
 	public function waitForStop()
 	{
 		if($this->mainThread) $this->mainThread->join();
@@ -176,6 +167,20 @@ class HomegearDevice extends HomegearDeviceBase
 					<operationType>store</operationType>
 				</physicalNone>
 			</parameter>
+            <parameter id="COUNTER">
+				<properties>
+					<casts>
+						<rpcBinary/>
+					</casts>
+				</properties>
+				<logicalInteger>
+                    <minimumValue>0</minimumValue>
+                    <defaultValue>0</defaultValue>
+                </logicalInteger>
+				<physicalNone>
+					<operationType>store</operationType>
+				</physicalNone>
+			</parameter>
 			<parameter id="SENSOR_UPDATE">
 				<properties>
 					<readable>false</readable>
@@ -184,9 +189,9 @@ class HomegearDevice extends HomegearDeviceBase
 					</casts>
 				</properties>
 				<logicalAction/>
-				<physicalInteger>
+				<physicalNone>
 					<operationType>store</operationType>
-				</physicalInteger>
+				</physicalNone>
 			</parameter>
 		</variables>
 	</parameterGroups>
